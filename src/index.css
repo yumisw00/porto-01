@@ -1,0 +1,16 @@
+/* Base reset - main styles in liquid-glass.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0a0a0f;
+  color: #fff;
+  overflow-x: hidden;
+}
