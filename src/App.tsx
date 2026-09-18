@@ -3,7 +3,6 @@ import './styles/liquid-glass.css';
 
 // ============================================
 // LIQUID GLASS PORTFOLIO - Main Application
-// Pure CSS + Vanilla JS interactivity
 // ============================================
 
 function App() {
@@ -13,45 +12,36 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const blobsRef = useRef<HTMLDivElement>(null);
   const scrollProgressRef = useRef<HTMLDivElement>(null);
+  const typingRef = useRef<HTMLSpanElement>(null);
 
-  // Mouse position state (refs for performance)
   const mousePos = useRef({ x: 0, y: 0 });
   const cursorPos = useRef({ x: 0, y: 0 });
   const dotPos = useRef({ x: 0, y: 0 });
   const spotlightPos = useRef({ x: 0, y: 0 });
   const isTouchDevice = useRef(false);
-  const animFrameRef = useRef<number>(0);
 
-  // Check if touch device & enable JS animations
   useEffect(() => {
     isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    document.body.classList.add('js-enabled');
-  }, []);
-
-  // === Custom Cursor with Spring Physics ===
-  useEffect(() => {
-    if (isTouchDevice.current) return;
-
+    
     const cursor = cursorRef.current;
     const dot = cursorDotRef.current;
+    
     if (!cursor || !dot) return;
 
     const lerp = (start: number, end: number, factor: number) => start + (end - start) * factor;
+    let animId: number;
 
-    const animateCursor = () => {
-      // Spring physics for outer cursor
+    const animate = () => {
       cursorPos.current.x = lerp(cursorPos.current.x, mousePos.current.x, 0.12);
       cursorPos.current.y = lerp(cursorPos.current.y, mousePos.current.y, 0.12);
       cursor.style.left = `${cursorPos.current.x}px`;
       cursor.style.top = `${cursorPos.current.y}px`;
 
-      // Faster follow for dot
       dotPos.current.x = lerp(dotPos.current.x, mousePos.current.x, 0.25);
       dotPos.current.y = lerp(dotPos.current.y, mousePos.current.y, 0.25);
       dot.style.left = `${dotPos.current.x}px`;
       dot.style.top = `${dotPos.current.y}px`;
 
-      // Spotlight follow
       spotlightPos.current.x = lerp(spotlightPos.current.x, mousePos.current.x, 0.08);
       spotlightPos.current.y = lerp(spotlightPos.current.y, mousePos.current.y, 0.08);
       if (spotlightRef.current) {
@@ -59,17 +49,16 @@ function App() {
         spotlightRef.current.style.top = `${spotlightPos.current.y}px`;
       }
 
-      animFrameRef.current = requestAnimationFrame(animateCursor);
+      animId = requestAnimationFrame(animate);
     };
 
-    animFrameRef.current = requestAnimationFrame(animateCursor);
+    animId = requestAnimationFrame(animate);
 
     const handleMouseMove = (e: MouseEvent) => {
       mousePos.current.x = e.clientX;
       mousePos.current.y = e.clientY;
     };
 
-    // Hover detection for interactive elements
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest('.magnetic-btn, .nav-link, .social-link, .tech-chip, .project-card, a, button')) {
@@ -89,27 +78,109 @@ function App() {
     document.addEventListener('mouseout', handleMouseOut);
 
     return () => {
-      cancelAnimationFrame(animFrameRef.current);
+      cancelAnimationFrame(animId);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseover', handleMouseOver);
       document.removeEventListener('mouseout', handleMouseOut);
     };
   }, []);
 
-  // === Mouse Parallax on Background Blobs ===
+  // Ripple effect on click
   useEffect(() => {
-    if (isTouchDevice.current) return;
+    const handleClick = (e: MouseEvent) => {
+      const ripple = document.createElement('div');
+      ripple.className = 'ripple';
+      ripple.style.left = `${e.clientX}px`;
+      ripple.style.top = `${e.clientY}px`;
+      document.body.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 800);
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, []);
 
-    const blobs = blobsRef.current;
-    if (!blobs) return;
+  // Magnetic buttons
+  useEffect(() => {
+    const buttons = document.querySelectorAll('.magnetic-btn');
+    const handleMagnetic = (e: MouseEvent) => {
+      buttons.forEach((btn) => {
+        const rect = (btn as HTMLElement).getBoundingClientRect();
+        const btnCenterX = rect.left + rect.width / 2;
+        const btnCenterY = rect.top + rect.height / 2;
+        const distX = e.clientX - btnCenterX;
+        const distY = e.clientY - btnCenterY;
+        const dist = Math.sqrt(distX * distX + distY * distY);
 
-    const blobElements = blobs.querySelectorAll('.liquid-blob, .glass-orb');
-    const depths = [0.02, 0.04, 0.06, 0.03, 0.05];
+        if (dist < 100) {
+          const strength = (1 - dist / 100) * 0.4;
+          (btn as HTMLElement).style.transform = `translate(${distX * strength}px, ${distY * strength}px)`;
+        } else {
+          (btn as HTMLElement).style.transform = 'translate(0, 0)';
+        }
+      });
+    };
+    document.addEventListener('mousemove', handleMagnetic);
+    return () => document.removeEventListener('mousemove', handleMagnetic);
+  }, []);
 
-    let parallaxFrame: number;
+  // Tilt cards
+  useEffect(() => {
+    const cards = document.querySelectorAll('.project-card');
+    const handleTilt = (e: MouseEvent) => {
+      cards.forEach((card) => {
+        const rect = (card as HTMLElement).getBoundingClientRect();
+        const isInBounds =
+          e.clientX >= rect.left && e.clientX <= rect.right &&
+          e.clientY >= rect.top && e.clientY <= rect.bottom;
+
+        const inner = card.querySelector('.project-card-inner') as HTMLElement;
+        if (!inner) return;
+
+        if (isInBounds) {
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const rotateX = ((e.clientY - centerY) / (rect.height / 2)) * -8;
+          const rotateY = ((e.clientX - centerX) / (rect.width / 2)) * 8;
+          inner.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+          const lightX = ((e.clientX - rect.left) / rect.width) * 100;
+          const lightY = ((e.clientY - rect.top) / rect.height) * 100;
+          inner.style.background = `radial-gradient(circle at ${lightX}% ${lightY}%, rgba(255,255,255,0.06) 0%, transparent 50%)`;
+        } else {
+          inner.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)';
+          inner.style.background = 'transparent';
+        }
+      });
+    };
+    document.addEventListener('mousemove', handleTilt);
+    return () => document.removeEventListener('mousemove', handleTilt);
+  }, []);
+
+  // Mouse trail particles
+  useEffect(() => {
+    let lastParticleTime = 0;
+    const handleTrail = (e: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastParticleTime < 50) return;
+      lastParticleTime = now;
+      const particle = document.createElement('div');
+      particle.className = 'mouse-particle';
+      particle.style.left = `${e.clientX}px`;
+      particle.style.top = `${e.clientY}px`;
+      document.body.appendChild(particle);
+      setTimeout(() => particle.remove(), 1000);
+    };
+    document.addEventListener('mousemove', handleTrail);
+    return () => document.removeEventListener('mousemove', handleTrail);
+  }, []);
+
+  // Parallax blobs
+  useEffect(() => {
+    const blobElements = blobsRef.current?.querySelectorAll('.liquid-blob, .glass-orb');
+    if (!blobElements) return;
+
+    const depths = [0.02, 0.04, 0.06, 0.03, 0.05, 0.02, 0.04];
     const targetPositions: { x: number; y: number }[] = [];
     const currentPositions: { x: number; y: number }[] = [];
-
     blobElements.forEach((_, i) => {
       targetPositions.push({ x: 0, y: 0 });
       currentPositions.push({ x: 0, y: 0 });
@@ -120,7 +191,6 @@ function App() {
       const centerY = window.innerHeight / 2;
       const moveX = (e.clientX - centerX) / centerX;
       const moveY = (e.clientY - centerY) / centerY;
-
       blobElements.forEach((_, i) => {
         const depth = depths[i % depths.length];
         targetPositions[i].x = moveX * depth * 100;
@@ -128,6 +198,7 @@ function App() {
       });
     };
 
+    let parallaxId: number;
     const animateParallax = () => {
       blobElements.forEach((el, i) => {
         const htmlEl = el as HTMLElement;
@@ -135,219 +206,52 @@ function App() {
         currentPositions[i].y += (targetPositions[i].y - currentPositions[i].y) * 0.05;
         htmlEl.style.transform = `translate(${currentPositions[i].x}px, ${currentPositions[i].y}px)`;
       });
-      parallaxFrame = requestAnimationFrame(animateParallax);
+      parallaxId = requestAnimationFrame(animateParallax);
     };
-
     document.addEventListener('mousemove', handleParallax);
-    parallaxFrame = requestAnimationFrame(animateParallax);
+    parallaxId = requestAnimationFrame(animateParallax);
 
     return () => {
+      cancelAnimationFrame(parallaxId);
       document.removeEventListener('mousemove', handleParallax);
-      cancelAnimationFrame(parallaxFrame);
     };
   }, []);
 
-  // === Magnetic Buttons ===
-  useEffect(() => {
-    if (isTouchDevice.current) return;
-
-    const buttons = document.querySelectorAll('.magnetic-btn');
-    const radius = 100;
-
-    const handleMove = (e: MouseEvent) => {
-      buttons.forEach((btn) => {
-        const rect = (btn as HTMLElement).getBoundingClientRect();
-        const btnCenterX = rect.left + rect.width / 2;
-        const btnCenterY = rect.top + rect.height / 2;
-        const distX = e.clientX - btnCenterX;
-        const distY = e.clientY - btnCenterY;
-        const dist = Math.sqrt(distX * distX + distY * distY);
-
-        if (dist < radius) {
-          const strength = (1 - dist / radius) * 0.4;
-          const moveX = distX * strength;
-          const moveY = distY * strength;
-          (btn as HTMLElement).style.transform = `translate(${moveX}px, ${moveY}px)`;
-        } else {
-          (btn as HTMLElement).style.transform = 'translate(0, 0)';
-        }
-      });
-    };
-
-    document.addEventListener('mousemove', handleMove);
-    return () => document.removeEventListener('mousemove', handleMove);
-  }, []);
-
-  // === Glass Ripple Effect on Click ===
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      const ripple = document.createElement('div');
-      ripple.className = 'ripple';
-      ripple.style.left = `${e.clientX}px`;
-      ripple.style.top = `${e.clientY}px`;
-      document.body.appendChild(ripple);
-      setTimeout(() => ripple.remove(), 800);
-    };
-
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  }, []);
-
-  // === Tilt Cards Effect ===
-  useEffect(() => {
-    if (isTouchDevice.current) return;
-
-    const cards = document.querySelectorAll('.project-card');
-
-    const handleMove = (e: MouseEvent) => {
-      cards.forEach((card) => {
-        const rect = (card as HTMLElement).getBoundingClientRect();
-        const isInBounds =
-          e.clientX >= rect.left && e.clientX <= rect.right &&
-          e.clientY >= rect.top && e.clientY <= rect.bottom;
-
-        if (isInBounds) {
-          const inner = card.querySelector('.project-card-inner') as HTMLElement;
-          if (!inner) return;
-
-          const centerX = rect.left + rect.width / 2;
-          const centerY = rect.top + rect.height / 2;
-          const rotateX = ((e.clientY - centerY) / (rect.height / 2)) * -8;
-          const rotateY = ((e.clientX - centerX) / (rect.width / 2)) * 8;
-
-          inner.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
-
-          // Dynamic light reflection
-          const lightX = ((e.clientX - rect.left) / rect.width) * 100;
-          const lightY = ((e.clientY - rect.top) / rect.height) * 100;
-          inner.style.background = `radial-gradient(circle at ${lightX}% ${lightY}%, rgba(255,255,255,0.06) 0%, transparent 50%)`;
-        } else {
-          const inner = card.querySelector('.project-card-inner') as HTMLElement;
-          if (inner) {
-            inner.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)';
-            inner.style.background = 'transparent';
-          }
-        }
-      });
-    };
-
-    document.addEventListener('mousemove', handleMove);
-    return () => document.removeEventListener('mousemove', handleMove);
-  }, []);
-
-  // === Mouse Trail Particles ===
-  useEffect(() => {
-    if (isTouchDevice.current) return;
-
-    let lastParticleTime = 0;
-    const throttleMs = 50;
-
-    const handleMove = (e: MouseEvent) => {
-      const now = Date.now();
-      if (now - lastParticleTime < throttleMs) return;
-      lastParticleTime = now;
-
-      const particle = document.createElement('div');
-      particle.className = 'mouse-particle';
-      particle.style.left = `${e.clientX}px`;
-      particle.style.top = `${e.clientY}px`;
-      document.body.appendChild(particle);
-      setTimeout(() => particle.remove(), 1000);
-    };
-
-    document.addEventListener('mousemove', handleMove);
-    return () => document.removeEventListener('mousemove', handleMove);
-  }, []);
-
-  // === Scroll Progress Indicator ===
+  // Scroll progress
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-
       if (scrollProgressRef.current) {
         scrollProgressRef.current.style.height = `${progress}%`;
       }
-
-      // Nav scroll state
       const nav = document.querySelector('.nav');
       if (nav) {
-        if (scrollTop > 50) {
-          nav.classList.add('scrolled');
-        } else {
-          nav.classList.remove('scrolled');
-        }
+        nav.classList.toggle('scrolled', scrollTop > 50);
       }
     };
-
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // === Scroll Reveal Animations ===
-  useEffect(() => {
-    const reveals = document.querySelectorAll('.reveal');
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
-    );
-
-    reveals.forEach((el) => observer.observe(el));
-
-    // Fallback: force show all reveals after 3 seconds if not triggered
-    const fallbackTimeout = setTimeout(() => {
-      reveals.forEach((el) => {
-        if (!el.classList.contains('visible')) {
-          el.classList.add('visible');
-        }
-      });
-    }, 3000);
-
-    return () => {
-      observer.disconnect();
-      clearTimeout(fallbackTimeout);
-    };
-  }, []);
-
-  // === Skill Bar Animation ===
+  // Skill bars animation
   useEffect(() => {
     const skillBars = document.querySelectorAll('.skill-bar-fill');
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('animate');
-          }
-        });
-      },
-      { threshold: 0.5 }
-    );
-
-    skillBars.forEach((bar) => observer.observe(bar));
-    return () => observer.disconnect();
+    skillBars.forEach((bar) => bar.classList.add('animate'));
   }, []);
 
-  // === Floating Particles Canvas ===
+  // Particles canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const isMobile = window.innerWidth < 768;
     const particleCount = isMobile ? 20 : 50;
-
     let particles: { x: number; y: number; vx: number; vy: number; size: number; opacity: number; color: string }[] = [];
+    let animId: number;
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -372,11 +276,9 @@ function App() {
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       particles.forEach((p) => {
         p.x += p.vx;
         p.y += p.vy;
-
         if (p.x < 0) p.x = canvas.width;
         if (p.x > canvas.width) p.x = 0;
         if (p.y < 0) p.y = canvas.height;
@@ -387,7 +289,6 @@ function App() {
         ctx.fillStyle = `${p.color} ${p.opacity})`;
         ctx.fill();
 
-        // Draw connections
         particles.forEach((p2) => {
           const dx = p.x - p2.x;
           const dy = p.y - p2.y;
@@ -402,24 +303,21 @@ function App() {
           }
         });
       });
-
-      requestAnimationFrame(animate);
+      animId = requestAnimationFrame(animate);
     };
 
     resize();
     initParticles();
     animate();
+    window.addEventListener('resize', () => { resize(); initParticles(); });
 
-    window.addEventListener('resize', () => {
-      resize();
-      initParticles();
-    });
-
-    return () => window.removeEventListener('resize', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(animId);
+    };
   }, []);
 
-  // === Typing Animation ===
-  const typingRef = useRef<HTMLSpanElement>(null);
+  // Typing animation
   useEffect(() => {
     const phrases = [
       'Crafting Digital Experiences',
@@ -455,64 +353,38 @@ function App() {
       }
     };
 
-    timeout = setTimeout(type, 1000);
+    timeout = setTimeout(type, 500);
     return () => clearTimeout(timeout);
   }, []);
 
-  // === Device Orientation for Mobile Parallax ===
-  useEffect(() => {
-    if (!isTouchDevice.current) return;
-
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      const blobs = blobsRef.current;
-      if (!blobs) return;
-      const blobElements = blobs.querySelectorAll('.liquid-blob');
-      const gamma = (e.gamma || 0) / 45; // left-right tilt
-      const beta = (e.beta || 0) / 45; // front-back tilt
-
-      blobElements.forEach((el, i) => {
-        const depth = (i + 1) * 0.02;
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.transform = `translate(${gamma * depth * 50}px, ${beta * depth * 50}px)`;
-      });
-    };
-
-    window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, []);
-
-  // === Smooth Scroll for Nav Links ===
   const handleNavClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
     const target = document.getElementById(targetId);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   return (
     <>
-      {/* Background Elements */}
+      {/* Background */}
       <div className="bg-gradient-animated" />
       <div className="noise-overlay" />
       <canvas ref={canvasRef} className="particles-canvas" aria-hidden="true" />
 
-      {/* Custom Cursor */}
+      {/* Cursor - always rendered, hidden on mobile via CSS */}
       <div ref={cursorRef} className="custom-cursor" aria-hidden="true" />
       <div ref={cursorDotRef} className="custom-cursor-dot" aria-hidden="true" />
 
       {/* Spotlight */}
       <div ref={spotlightRef} className="spotlight" aria-hidden="true" />
 
-      {/* Liquid Blobs Background */}
+      {/* Blobs */}
       <div ref={blobsRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 4 }} aria-hidden="true">
-        <div className="liquid-blob liquid-blob--cyan" style={{ width: '400px', height: '400px', top: '10%', left: '10%', animationDelay: '0s' }} />
-        <div className="liquid-blob liquid-blob--purple" style={{ width: '350px', height: '350px', top: '60%', right: '10%', animationDelay: '-5s' }} />
-        <div className="liquid-blob liquid-blob--pink" style={{ width: '300px', height: '300px', bottom: '10%', left: '40%', animationDelay: '-10s' }} />
-        <div className="glass-orb" style={{ width: '80px', height: '80px', top: '20%', right: '20%', animationDelay: '-2s' }} />
-        <div className="glass-orb" style={{ width: '50px', height: '50px', top: '70%', left: '15%', animationDelay: '-4s' }} />
-        <div className="glass-orb" style={{ width: '120px', height: '120px', top: '40%', right: '30%', animationDelay: '-6s' }} />
-        <div className="glass-orb" style={{ width: '40px', height: '40px', top: '80%', right: '40%', animationDelay: '-3s' }} />
+        <div className="liquid-blob liquid-blob--cyan" style={{ width: '400px', height: '400px', top: '10%', left: '10%' }} />
+        <div className="liquid-blob liquid-blob--purple" style={{ width: '350px', height: '350px', top: '60%', right: '10%' }} />
+        <div className="liquid-blob liquid-blob--pink" style={{ width: '300px', height: '300px', bottom: '10%', left: '40%' }} />
+        <div className="glass-orb" style={{ width: '80px', height: '80px', top: '20%', right: '20%' }} />
+        <div className="glass-orb" style={{ width: '50px', height: '50px', top: '70%', left: '15%' }} />
+        <div className="glass-orb" style={{ width: '120px', height: '120px', top: '40%', right: '30%' }} />
       </div>
 
       {/* Scroll Progress */}
@@ -520,11 +392,9 @@ function App() {
         <div ref={scrollProgressRef} className="scroll-progress-fill" style={{ height: '0%' }} />
       </div>
 
-      {/* Navigation */}
+      {/* Nav */}
       <nav className="nav" role="navigation" aria-label="Main navigation">
-        <a href="#hero" className="nav-logo" onClick={(e) => handleNavClick(e, 'hero')}>
-          A<span>.</span>R
-        </a>
+        <a href="#hero" className="nav-logo" onClick={(e) => handleNavClick(e, 'hero')}>A<span>.</span>R</a>
         <ul className="nav-links">
           <li><a href="#about" className="nav-link" onClick={(e) => handleNavClick(e, 'about')}>About</a></li>
           <li><a href="#portfolio" className="nav-link" onClick={(e) => handleNavClick(e, 'portfolio')}>Work</a></li>
@@ -533,14 +403,14 @@ function App() {
         </ul>
       </nav>
 
-      {/* === HERO SECTION === */}
+      {/* Hero */}
       <section id="hero" className="hero">
-        <h1 className="hero-title glass-text reveal">Alex Rivera</h1>
-        <p className="hero-tagline reveal reveal-delay-1">
+        <h1 className="hero-title glass-text">Alex Rivera</h1>
+        <p className="hero-tagline">
           <span ref={typingRef}></span>
           <span className="typing-cursor" />
         </p>
-        <div className="hero-buttons reveal reveal-delay-2">
+        <div className="hero-buttons">
           <a href="#portfolio" className="magnetic-btn" onClick={(e) => handleNavClick(e, 'portfolio')}>
             <span>View My Work</span>
           </a>
@@ -554,96 +424,56 @@ function App() {
         </div>
       </section>
 
-      {/* Wave Divider */}
+      {/* Wave */}
       <div className="wave-divider" aria-hidden="true">
         <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
-          <path
-            d="M0,40 C360,80 720,0 1080,40 C1260,60 1380,50 1440,40 L1440,80 L0,80 Z"
-            fill="rgba(0, 212, 255, 0.03)"
-          />
-          <path
-            d="M0,50 C240,20 480,70 720,50 C960,30 1200,60 1440,50 L1440,80 L0,80 Z"
-            fill="rgba(123, 47, 247, 0.03)"
-          />
+          <path d="M0,40 C360,80 720,0 1080,40 C1260,60 1380,50 1440,40 L1440,80 L0,80 Z" fill="rgba(0, 212, 255, 0.03)" />
+          <path d="M0,50 C240,20 480,70 720,50 C960,30 1200,60 1440,50 L1440,80 L0,80 Z" fill="rgba(123, 47, 247, 0.03)" />
         </svg>
       </div>
 
-      {/* === ABOUT SECTION === */}
+      {/* About */}
       <section id="about" className="section">
-        <h2 className="section-title reveal">About Me</h2>
-        <p className="section-subtitle reveal reveal-delay-1">
-          A passionate developer who transforms ideas into immersive digital experiences.
-        </p>
+        <h2 className="section-title">About Me</h2>
+        <p className="section-subtitle">A passionate developer who transforms ideas into immersive digital experiences.</p>
         <div className="about-grid">
-          <div className="glass-card reveal reveal-delay-2" style={{ padding: '2rem' }}>
-            <div className="about-photo">
-              <span role="img" aria-label="Developer avatar">👨‍💻</span>
-            </div>
+          <div className="glass-card" style={{ padding: '2rem' }}>
+            <div className="about-photo"><span role="img" aria-label="Developer">👨‍💻</span></div>
             <div style={{ marginTop: '1.5rem' }}>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: '1rem' }}>
-                With over 7 years of experience in web development, I specialize in creating 
-                visually stunning and highly interactive websites. My passion lies at the 
-                intersection of design and technology, where I craft digital experiences that 
-                captivate and engage users.
+                With over 7 years of experience in web development, I specialize in creating visually stunning and highly interactive websites. My passion lies at the intersection of design and technology.
               </p>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                From startups to enterprise clients, I've helped businesses elevate their 
-                online presence with cutting-edge technologies and creative solutions.
+                From startups to enterprise clients, I've helped businesses elevate their online presence with cutting-edge technologies and creative solutions.
               </p>
             </div>
           </div>
-
-          <div className="reveal reveal-delay-3">
+          <div>
             <div className="glass-card" style={{ padding: '2rem', marginBottom: '1.5rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-primary)', marginBottom: '1.5rem', fontSize: '1.2rem' }}>
-                Skills & Expertise
-              </h3>
+              <h3 style={{ fontFamily: 'var(--font-primary)', marginBottom: '1.5rem', fontSize: '1.2rem' }}>Skills & Expertise</h3>
               <div className="skill-bar">
-                <div className="skill-bar-label">
-                  <span>React / Next.js</span><span>95%</span>
-                </div>
-                <div className="skill-bar-track">
-                  <div className="skill-bar-fill" style={{ width: '95%' }} />
-                </div>
+                <div className="skill-bar-label"><span>React / Next.js</span><span>95%</span></div>
+                <div className="skill-bar-track"><div className="skill-bar-fill" style={{ width: '95%' }} /></div>
               </div>
               <div className="skill-bar">
-                <div className="skill-bar-label">
-                  <span>TypeScript</span><span>90%</span>
-                </div>
-                <div className="skill-bar-track">
-                  <div className="skill-bar-fill" style={{ width: '90%' }} />
-                </div>
+                <div className="skill-bar-label"><span>TypeScript</span><span>90%</span></div>
+                <div className="skill-bar-track"><div className="skill-bar-fill" style={{ width: '90%' }} /></div>
               </div>
               <div className="skill-bar">
-                <div className="skill-bar-label">
-                  <span>CSS / Animations</span><span>92%</span>
-                </div>
-                <div className="skill-bar-track">
-                  <div className="skill-bar-fill" style={{ width: '92%' }} />
-                </div>
+                <div className="skill-bar-label"><span>CSS / Animations</span><span>92%</span></div>
+                <div className="skill-bar-track"><div className="skill-bar-fill" style={{ width: '92%' }} /></div>
               </div>
               <div className="skill-bar">
-                <div className="skill-bar-label">
-                  <span>Node.js / Backend</span><span>85%</span>
-                </div>
-                <div className="skill-bar-track">
-                  <div className="skill-bar-fill" style={{ width: '85%' }} />
-                </div>
+                <div className="skill-bar-label"><span>Node.js / Backend</span><span>85%</span></div>
+                <div className="skill-bar-track"><div className="skill-bar-fill" style={{ width: '85%' }} /></div>
               </div>
               <div className="skill-bar">
-                <div className="skill-bar-label">
-                  <span>UI/UX Design</span><span>88%</span>
-                </div>
-                <div className="skill-bar-track">
-                  <div className="skill-bar-fill" style={{ width: '88%' }} />
-                </div>
+                <div className="skill-bar-label"><span>UI/UX Design</span><span>88%</span></div>
+                <div className="skill-bar-track"><div className="skill-bar-fill" style={{ width: '88%' }} /></div>
               </div>
             </div>
-
             <div className="glass-card" style={{ padding: '2rem' }}>
-              <h3 style={{ fontFamily: 'var(--font-primary)', marginBottom: '1rem', fontSize: '1.2rem' }}>
-                Tech Stack
-              </h3>
+              <h3 style={{ fontFamily: 'var(--font-primary)', marginBottom: '1rem', fontSize: '1.2rem' }}>Tech Stack</h3>
               <div className="tech-chips">
                 {['React', 'Next.js', 'TypeScript', 'Node.js', 'GraphQL', 'Tailwind CSS', 'Framer Motion', 'Three.js', 'PostgreSQL', 'AWS', 'Docker', 'Figma'].map((tech) => (
                   <span key={tech} className="tech-chip">{tech}</span>
@@ -654,44 +484,18 @@ function App() {
         </div>
       </section>
 
-      {/* === PORTFOLIO SECTION === */}
+      {/* Portfolio */}
       <section id="portfolio" className="section">
-        <h2 className="section-title reveal">Featured Work</h2>
-        <p className="section-subtitle reveal reveal-delay-1">
-          A selection of projects that showcase my expertise in building modern, interactive web experiences.
-        </p>
+        <h2 className="section-title">Featured Work</h2>
+        <p className="section-subtitle">A selection of projects that showcase my expertise in building modern, interactive web experiences.</p>
         <div className="portfolio-grid">
           {[
-            {
-              title: 'Nebula Dashboard',
-              desc: 'A real-time analytics dashboard with 3D data visualization and liquid glass UI components.',
-              tags: ['React', 'Three.js', 'D3.js', 'WebSocket'],
-              icon: '🌌',
-              gradient: 'linear-gradient(135deg, #0a0a2e, #1a0a3e)',
-            },
-            {
-              title: 'Prism E-Commerce',
-              desc: 'Luxury fashion marketplace with immersive product showcases and AR try-on features.',
-              tags: ['Next.js', 'Stripe', 'Prisma', 'AWS'],
-              icon: '💎',
-              gradient: 'linear-gradient(135deg, #1a0a2e, #2a0a1e)',
-            },
-            {
-              title: 'Flux Social Platform',
-              desc: 'Next-gen social platform with real-time messaging, stories, and AI-powered content curation.',
-              tags: ['React', 'GraphQL', 'Redis', 'OpenAI'],
-              icon: '⚡',
-              gradient: 'linear-gradient(135deg, #0a1a2e, #0a2a1e)',
-            },
-            {
-              title: 'Aether Design System',
-              desc: 'Comprehensive design system with 200+ components, glassmorphism tokens, and accessibility built-in.',
-              tags: ['TypeScript', 'Storybook', 'CSS-in-JS', 'A11y'],
-              icon: '🎨',
-              gradient: 'linear-gradient(135deg, #1a1a0e, #0a1a2e)',
-            },
-          ].map((project, i) => (
-            <div key={project.title} className={`project-card reveal reveal-delay-${i + 1}`}>
+            { title: 'Nebula Dashboard', desc: 'A real-time analytics dashboard with 3D data visualization and liquid glass UI components.', tags: ['React', 'Three.js', 'D3.js', 'WebSocket'], icon: '🌌', gradient: 'linear-gradient(135deg, #0a0a2e, #1a0a3e)' },
+            { title: 'Prism E-Commerce', desc: 'Luxury fashion marketplace with immersive product showcases and AR try-on features.', tags: ['Next.js', 'Stripe', 'Prisma', 'AWS'], icon: '💎', gradient: 'linear-gradient(135deg, #1a0a2e, #2a0a1e)' },
+            { title: 'Flux Social Platform', desc: 'Next-gen social platform with real-time messaging, stories, and AI-powered content curation.', tags: ['React', 'GraphQL', 'Redis', 'OpenAI'], icon: '⚡', gradient: 'linear-gradient(135deg, #0a1a2e, #0a2a1e)' },
+            { title: 'Aether Design System', desc: 'Comprehensive design system with 200+ components, glassmorphism tokens, and accessibility built-in.', tags: ['TypeScript', 'Storybook', 'CSS-in-JS', 'A11y'], icon: '🎨', gradient: 'linear-gradient(135deg, #1a1a0e, #0a1a2e)' },
+          ].map((project) => (
+            <div key={project.title} className="project-card">
               <div className="project-card-inner glass-card" style={{ padding: '1.5rem' }}>
                 <div className="project-thumbnail" style={{ background: project.gradient }}>
                   <div className="project-thumbnail-icon">{project.icon}</div>
@@ -699,9 +503,7 @@ function App() {
                 <h3 className="project-title">{project.title}</h3>
                 <p className="project-desc">{project.desc}</p>
                 <div className="project-tags">
-                  {project.tags.map((tag) => (
-                    <span key={tag} className="project-tag">{tag}</span>
-                  ))}
+                  {project.tags.map((tag) => <span key={tag} className="project-tag">{tag}</span>)}
                 </div>
               </div>
             </div>
@@ -709,40 +511,18 @@ function App() {
         </div>
       </section>
 
-      {/* === EXPERIENCE SECTION === */}
+      {/* Experience */}
       <section id="experience" className="section">
-        <h2 className="section-title reveal">Experience</h2>
-        <p className="section-subtitle reveal reveal-delay-1">
-          My professional journey through the world of web development.
-        </p>
+        <h2 className="section-title">Experience</h2>
+        <p className="section-subtitle">My professional journey through the world of web development.</p>
         <div className="timeline">
           {[
-            {
-              date: '2022 - Present',
-              title: 'Senior Creative Developer',
-              company: 'Nexus Digital Agency',
-              desc: 'Leading the frontend team in building award-winning interactive experiences for global brands. Implemented design systems that reduced development time by 40%.',
-            },
-            {
-              date: '2020 - 2022',
-              title: 'Full Stack Developer',
-              company: 'Quantum Labs',
-              desc: 'Built scalable SaaS products serving 100K+ users. Architected microservices infrastructure and mentored junior developers.',
-            },
-            {
-              date: '2018 - 2020',
-              title: 'Frontend Developer',
-              company: 'Pixel Perfect Studio',
-              desc: 'Crafted pixel-perfect responsive websites and progressive web apps. Specialized in performance optimization and animation.',
-            },
-            {
-              date: '2017 - 2018',
-              title: 'Junior Developer',
-              company: 'StartUp Hub',
-              desc: 'Started my journey building MVPs for early-stage startups. Learned agile methodologies and rapid prototyping.',
-            },
-          ].map((item, i) => (
-            <div key={item.title} className={`timeline-item glass-card reveal reveal-delay-${i + 1}`}>
+            { date: '2022 - Present', title: 'Senior Creative Developer', company: 'Nexus Digital Agency', desc: 'Leading the frontend team in building award-winning interactive experiences for global brands.' },
+            { date: '2020 - 2022', title: 'Full Stack Developer', company: 'Quantum Labs', desc: 'Built scalable SaaS products serving 100K+ users. Architected microservices infrastructure.' },
+            { date: '2018 - 2020', title: 'Frontend Developer', company: 'Pixel Perfect Studio', desc: 'Crafted pixel-perfect responsive websites and progressive web apps.' },
+            { date: '2017 - 2018', title: 'Junior Developer', company: 'StartUp Hub', desc: 'Started my journey building MVPs for early-stage startups.' },
+          ].map((item) => (
+            <div key={item.title} className="timeline-item glass-card">
               <div className="timeline-node" />
               <div className="timeline-date">{item.date}</div>
               <h3 className="timeline-title">{item.title}</h3>
@@ -753,14 +533,12 @@ function App() {
         </div>
       </section>
 
-      {/* === CONTACT SECTION === */}
+      {/* Contact */}
       <section id="contact" className="section">
-        <h2 className="section-title reveal">Let's Connect</h2>
-        <p className="section-subtitle reveal reveal-delay-1">
-          Have a project in mind? I'd love to hear about it. Let's create something extraordinary together.
-        </p>
+        <h2 className="section-title">Let's Connect</h2>
+        <p className="section-subtitle">Have a project in mind? I'd love to hear about it. Let's create something extraordinary together.</p>
         <div className="contact-grid">
-          <form className="contact-form reveal reveal-delay-2" onSubmit={(e) => e.preventDefault()}>
+          <form className="contact-form" onSubmit={(e) => e.preventDefault()}>
             <div className="form-group">
               <input type="text" className="form-input" placeholder=" " aria-label="Your name" />
               <label className="form-label">Your Name</label>
@@ -777,12 +555,9 @@ function App() {
               <span>Send Message ✨</span>
             </button>
           </form>
-
-          <div className="reveal reveal-delay-3">
+          <div>
             <div className="glass-card" style={{ padding: '2rem', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <h3 style={{ fontFamily: 'var(--font-primary)', fontSize: '1.3rem', marginBottom: '1rem' }}>
-                Get in Touch
-              </h3>
+              <h3 style={{ fontFamily: 'var(--font-primary)', fontSize: '1.3rem', marginBottom: '1rem' }}>Get in Touch</h3>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: '1.5rem' }}>
                 I'm always open to discussing new projects, creative ideas, or opportunities to be part of your vision.
               </p>
@@ -804,20 +579,15 @@ function App() {
                 <a href="#" className="social-link" aria-label="Twitter">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                 </a>
-                <a href="#" className="social-link" aria-label="Dribbble">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 24C5.385 24 0 18.615 0 12S5.385 0 12 0s12 5.385 12 12-5.385 12-12 12zm10.12-10.358c-.35-.11-3.17-.953-6.384-.438 1.34 3.684 1.887 6.684 1.992 7.308 2.3-1.555 3.936-4.02 4.395-6.87zm-6.115 7.808c-.153-.9-.75-4.032-2.19-7.77l-.066.02c-5.79 2.015-7.86 6.025-8.04 6.4 1.73 1.358 3.92 2.166 6.29 2.166 1.42 0 2.77-.29 4-.81zm-11.62-2.58c.232-.4 3.045-5.055 8.332-6.765.135-.045.27-.084.405-.12-.26-.585-.54-1.167-.832-1.74C7.17 11.775 2.206 11.71 1.756 11.7l-.004.312c0 2.633.998 5.037 2.634 6.855zm-2.42-8.955c.46.008 4.683.026 9.477-1.248-1.698-3.018-3.53-5.558-3.8-5.928-2.868 1.35-5.01 3.99-5.676 7.17zM9.6 2.052c.282.38 2.145 2.914 3.822 6 3.645-1.365 5.19-3.44 5.373-3.702-1.81-1.61-4.19-2.586-6.795-2.586-.825 0-1.63.1-2.4.29zm10.335 3.483c-.218.29-1.91 2.493-5.724 4.04.24.49.47.985.68 1.486.08.18.15.36.22.53 3.41-.43 6.8.26 7.14.33-.02-2.42-.88-4.64-2.31-6.38z"/></svg>
-                </a>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* === FOOTER === */}
+      {/* Footer */}
       <footer className="footer">
-        <p className="footer-text">
-          © 2024 Alex Rivera. Crafted with 💜 and liquid glass.
-        </p>
+        <p className="footer-text">© 2024 Alex Rivera. Crafted with 💜 and liquid glass.</p>
       </footer>
     </>
   );
