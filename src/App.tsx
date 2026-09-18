@@ -22,9 +22,10 @@ function App() {
   const isTouchDevice = useRef(false);
   const animFrameRef = useRef<number>(0);
 
-  // Check if touch device
+  // Check if touch device & enable JS animations
   useEffect(() => {
     isTouchDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    document.body.classList.add('js-enabled');
   }, []);
 
   // === Custom Cursor with Spring Physics ===
@@ -300,7 +301,20 @@ function App() {
     );
 
     reveals.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+
+    // Fallback: force show all reveals after 3 seconds if not triggered
+    const fallbackTimeout = setTimeout(() => {
+      reveals.forEach((el) => {
+        if (!el.classList.contains('visible')) {
+          el.classList.add('visible');
+        }
+      });
+    }, 3000);
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(fallbackTimeout);
+    };
   }, []);
 
   // === Skill Bar Animation ===
@@ -491,7 +505,7 @@ function App() {
       <div ref={spotlightRef} className="spotlight" aria-hidden="true" />
 
       {/* Liquid Blobs Background */}
-      <div ref={blobsRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }} aria-hidden="true">
+      <div ref={blobsRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 4 }} aria-hidden="true">
         <div className="liquid-blob liquid-blob--cyan" style={{ width: '400px', height: '400px', top: '10%', left: '10%', animationDelay: '0s' }} />
         <div className="liquid-blob liquid-blob--purple" style={{ width: '350px', height: '350px', top: '60%', right: '10%', animationDelay: '-5s' }} />
         <div className="liquid-blob liquid-blob--pink" style={{ width: '300px', height: '300px', bottom: '10%', left: '40%', animationDelay: '-10s' }} />
